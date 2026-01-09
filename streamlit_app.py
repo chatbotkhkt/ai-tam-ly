@@ -15,13 +15,15 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 if "aq_score" not in st.session_state:
-    st.session_state.aq_score = 0
+    st.session_state.aq_score = None
 if "aq_level" not in st.session_state:
     st.session_state.aq_level = ""
 if "ai_result" not in st.session_state:
     st.session_state.ai_result = ""
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "chat_input" not in st.session_state:
+    st.session_state.chat_input = ""
 
 # ================== DỮ LIỆU AQ ==================
 QUESTIONS = [
@@ -90,21 +92,22 @@ if st.button("📤 GỬI KHẢO SÁT") and not st.session_state.submitted:
 
     st.session_state.aq_score = aq_score
     st.session_state.aq_level = level
+    st.session_state.submitted = True
 
     prompt = f"""
 Bạn là chuyên gia tư vấn tâm lý.
 
 Điểm AQ: {aq_score}
 Mức AQ: {level}
+
 Câu chuyện: {story}
 Nhu cầu hỗ trợ: {need}
 
 Hãy:
 - Giải thích ý nghĩa điểm AQ
-- Liên hệ với cảm xúc người dùng
-- Đưa ra lời khuyên nhẹ nhàng, thực tế
+- Liên hệ cảm xúc người dùng
+- Đưa ra lời khuyên thực tế, nhẹ nhàng
 - Không chẩn đoán y khoa
-- Kết thúc bằng câu hỏi mở
 """
 
     with st.spinner("🤖 AI đang phân tích..."):
@@ -115,7 +118,6 @@ Hãy:
         )
 
     st.session_state.ai_result = res.choices[0].message.content
-    st.session_state.submitted = True
 
 # ================== KẾT QUẢ ==================
 if st.session_state.submitted:
@@ -125,24 +127,33 @@ if st.session_state.submitted:
     st.write(f"**Mức AQ:** {st.session_state.aq_level}")
     st.success(st.session_state.ai_result)
 
-# ================== CHAT AI ==================
+# ================== CHAT (CUỐI TRANG) ==================
 if st.session_state.submitted:
     st.markdown("---")
     st.subheader("💬 Trò chuyện với AI tư vấn")
 
-    user_msg = st.text_input("Nhập câu hỏi của bạn")
+    user_msg = st.text_input(
+        "Nhập câu hỏi của bạn",
+        key="chat_input"
+    )
 
     if user_msg:
-        st.session_state.chat.append(("Bạn", user_msg))
+        st.session_state.chat_history.append(("Bạn", user_msg))
 
-        with st.spinner("AI đang phản hồi..."):
+        with st.spinner("AI đang trả lời..."):
             res = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": user_msg}],
+                messages=[
+                    {"role": "system", "content": "Bạn là chuyên gia tư vấn tâm lý, trả lời ngắn gọn, đồng cảm."},
+                    {"role": "user", "content": user_msg}
+                ],
                 temperature=0.7
             )
 
-        st.session_state.chat.append(("AI", res.choices[0].message.content))
+        st.session_state.chat_history.append(("AI", res.choices[0].message.content))
 
-    for role, msg in st.session_state.chat:
+        # 🔥 XOÁ INPUT SAU KHI CHAT
+        st.session_state.chat_input = ""
+
+    for role, msg in st.session_state.chat_history:
         st.markdown(f"**{role}:** {msg}")
