@@ -1,16 +1,17 @@
-def calculate_aq_scores(answers):
+def score_aq(answers):
     """
-    answers: list gồm 20 số (1–5)
+    answers: list[int] (1–5)
     """
-    return sum(answers)
+    total = sum(answers)
 
-
-def aq_level(score):
-    if score <= 35:
-        return "Thấp – Kiểm soát cảm xúc tốt"
-    elif score <= 60:
-        return "Trung bình – Đôi lúc khó kiểm soát"
-    elif score <= 80:
-        return "Cao – Dễ bị kích động"
+    if total <= 40:
+        level = "Thấp"
+        note = "Bạn có xu hướng kiểm soát hành vi tốt."
+    elif total <= 70:
+        level = "Trung bình"
+        note = "Bạn có dấu hiệu căng thẳng ở mức vừa."
     else:
-        return "Rất cao – Cần hỗ trợ tâm lý chuyên sâu"
+        level = "Cao"
+        note = "Bạn dễ căng thẳng, cần hỗ trợ tâm lý."
+
+    return total, level, note

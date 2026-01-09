@@ -1,32 +1,68 @@
-from openai import OpenAI
-from dotenv import load_dotenv
-import os
-from prompt import SYSTEM_PROMPT
+import openai
+from load_docs import load_all_docs
 
-# Load biến môi trường từ .env
-load_dotenv()
+DOC_TEXT = load_all_docs()
 
-# Tạo client OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+def ai_giai_thich_ket_qua(api_key, aq_score, aq_level, story, need):
+    openai.api_key = api_key
 
-print("🤖 AI TƯ VẤN TÂM LÝ (gõ 'exit' để thoát)")
-print("-" * 40)
+    prompt = f"""
+Bạn là chuyên gia tư vấn tâm lý học đường.
 
-while True:
-    user_input = input("👤 Bạn: ")
+Dữ liệu khảo sát:
+- Điểm AQ: {aq_score}
+- Mức độ: {aq_level}
+- Câu chuyện người dùng: {story}
+- Nhu cầu hỗ trợ: {need}
 
-    if user_input.lower() == "exit":
-        print("👋 Tạm biệt!")
-        break
+Yêu cầu:
+1. Giải thích vì sao điểm AQ này tương ứng với mức độ trên
+2. Liên hệ trực tiếp với câu chuyện người dùng
+3. Giải thích bằng ngôn ngữ dễ hiểu, nhẹ nhàng
+4. Không chẩn đoán y khoa
+5. Kết thúc bằng câu mời người dùng tiếp tục chia sẻ
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input}
-        ]
+Tài liệu tham khảo khoa học:
+{DOC_TEXT[:4000]}
+"""
+
+    res = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6
     )
 
-    ai_reply = response.choices[0].message.content
-    print("\n🤖 AI:", ai_reply)
-    print("-" * 40)
+    return res.choices[0].message.content
+
+
+def ai_tu_van(api_key, aq_score, aq_level, story, need, chat_history, user_msg):
+    openai.api_key = api_key
+
+    messages = [
+        {
+            "role": "system",
+            "content": f"""
+Bạn là AI tư vấn tâm lý.
+Ghi nhớ:
+- AQ: {aq_score} ({aq_level})
+- Câu chuyện: {story}
+- Nhu cầu: {need}
+
+Ưu tiên tài liệu khoa học sau:
+{DOC_TEXT[:4000]}
+"""
+        }
+    ]
+
+    for r, c in chat_history:
+        messages.append({"role": r, "content": c})
+
+    messages.append({"role": "user", "content": user_msg})
+
+    res = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        temperature=0.6
+    )
+
+    return res.choices[0].message.content
