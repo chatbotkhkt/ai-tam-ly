@@ -1,64 +1,56 @@
 import streamlit as st
-import os
 from openai import OpenAI
+import time
 
-# =====================
-# CẤU HÌNH TRANG
-# =====================
+# =========================
+# CẤU HÌNH
+# =========================
 st.set_page_config(
     page_title="AI Tư vấn tâm lý",
     layout="centered"
 )
 
-st.title("AI TƯ VẤN TÂM LÝ")
+client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
 
-# =====================
-# API KEY
-# =====================
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
+# =========================
+# SESSION STATE
+# =========================
+if "aq_done" not in st.session_state:
+    st.session_state.aq_done = False
 
-# =====================
-# LOAD TÀI LIỆU OCR / PDF TEXT
-# =====================
-def load_docs():
-    text = ""
-    if os.path.exists("ocr_texts"):
-        for f in os.listdir("ocr_texts"):
-            if f.endswith(".txt"):
-                with open(os.path.join("ocr_texts", f), encoding="utf-8") as file:
-                    text += file.read() + "\n"
-    return text
+if "aq_result" not in st.session_state:
+    st.session_state.aq_result = ""
 
-DOC_TEXT = load_docs()[:4000]
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
 
-# =====================
-# CÂU HỎI AQ (20 CÂU – GIỮ NGUYÊN)
-# =====================
-AQ_QUESTIONS = [
+# =========================
+# DỮ LIỆU CÂU HỎI AQ (20 CÂU)
+# =========================
+questions = [
     "1. Tôi bị bực bội dễ dàng.",
     "2. Tôi thường nóng giận.",
-    "3. Khi tức giận, tôi dễ nói xung với người khác.",
+    "3. Khi tức giận, tôi dễ nổi xung với người khác.",
     "4. Tôi nghĩ rằng nếu ai đó xúc phạm mình, họ đáng bị đánh lại.",
     "5. Tôi dễ mất bình tĩnh.",
-    "6. Tôi hay cáu gắt.",
-    "7. Tôi thường không kiềm chế được cảm xúc.",
-    "8. Tôi phản ứng mạnh khi bị chê trách.",
-    "9. Tôi hay đập đồ khi tức giận.",
-    "10. Tôi khó bình tĩnh khi tranh cãi.",
-    "11. Tôi hay quát mắng người khác.",
-    "12. Tôi cảm thấy khó chịu kéo dài.",
-    "13. Tôi dễ nổi nóng khi mệt.",
-    "14. Tôi khó tha thứ khi bị làm tổn thương.",
-    "15. Tôi thường hành động trước khi suy nghĩ.",
-    "16. Tôi dễ nổi cáu khi không được như ý.",
-    "17. Tôi khó kiểm soát hành vi khi căng thẳng.",
-    "18. Tôi hay tức giận vì chuyện nhỏ.",
-    "19. Tôi khó giữ bình tĩnh trong xung đột.",
-    "20. Tôi dễ mất kiểm soát hành vi."
+    "6. Tôi khó kiểm soát cảm xúc khi căng thẳng.",
+    "7. Tôi hay quát mắng người khác.",
+    "8. Tôi cảm thấy khó chịu khi mọi việc không theo ý mình.",
+    "9. Tôi thường hối hận sau khi nổi giận.",
+    "10. Tôi dễ cáu gắt với người thân.",
+    "11. Tôi khó giữ bình tĩnh khi bị chỉ trích.",
+    "12. Tôi dễ nổi nóng trong giao tiếp.",
+    "13. Tôi hay phản ứng mạnh khi bị áp lực.",
+    "14. Tôi thường to tiếng khi tranh luận.",
+    "15. Tôi thấy khó kiềm chế cơn giận.",
+    "16. Tôi dễ bùng nổ cảm xúc.",
+    "17. Tôi thường mất kiểm soát hành vi khi tức giận.",
+    "18. Tôi thấy mình thiếu kiên nhẫn.",
+    "19. Tôi dễ phản ứng tiêu cực.",
+    "20. Tôi hay để cảm xúc chi phối hành động."
 ]
 
-OPTIONS = [
+options = [
     "Hoàn toàn không đúng",
     "Không đúng lắm",
     "Phân vân",
@@ -66,7 +58,7 @@ OPTIONS = [
     "Rất đúng"
 ]
 
-SCORE_MAP = {
+scores = {
     "Hoàn toàn không đúng": 0,
     "Không đúng lắm": 1,
     "Phân vân": 2,
@@ -74,129 +66,95 @@ SCORE_MAP = {
     "Rất đúng": 4
 }
 
-# =====================
-# STATE
-# =====================
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-# =====================
-# PHẦN 1 – TRẮC NGHIỆM AQ
-# =====================
-st.header("PHẦN 1. TRẮC NGHIỆM HÀNH VI (AQ)")
+# =========================
+# GIAO DIỆN
+# =========================
+st.title("🧠 AI TƯ VẤN TÂM LÝ")
+st.markdown("### PHẦN 1. TRẮC NGHIỆM HÀNH VI (AQ)")
 
 answers = []
 
-for q in AQ_QUESTIONS:
-    ans = st.radio(q, OPTIONS, index=0)
-    answers.append(SCORE_MAP[ans])
+for q in questions:
+    ans = st.radio(q, options, index=0, key=q)
+    answers.append(scores[ans])
 
-# =====================
-# PHẦN 2 – TỰ LUẬN
-# =====================
-st.header("PHẦN 2. CÂU HỎI TỰ LUẬN")
+st.markdown("---")
+st.markdown("### ✍️ PHẦN 2. CÂU HỎI TỰ LUẬN")
 
-story = st.text_area("1. Hãy chia sẻ câu chuyện của bạn", height=120)
-need = st.text_area("2. Bạn cần chúng tôi hỗ trợ gì không?", height=120)
+story = st.text_area("Hãy chia sẻ câu chuyện của bạn", height=120)
+need = st.text_area("Bạn cần chúng tôi hỗ trợ gì không?", height=120)
 
-# =====================
-# TÍNH AQ
-# =====================
-def aq_level(score):
-    if score <= 20:
-        return "Thấp"
-    elif score <= 40:
-        return "Trung bình"
-    else:
-        return "Cao"
-
-# =====================
-# AI PHÂN TÍCH KẾT QUẢ
-# =====================
-def ai_analyze(score, level, story, need):
-    prompt = f"""
-Bạn là chuyên gia tư vấn tâm lý học đường.
-
-Điểm AQ: {score} ({level})
-Câu chuyện người dùng: {story}
-Nhu cầu hỗ trợ: {need}
-
-Yêu cầu:
-- Giải thích vì sao điểm AQ như vậy
-- Liên hệ trực tiếp với câu chuyện
-- Đưa ra lời khuyên thực tế
-- Không chẩn đoán y khoa
-- Giọng nhẹ nhàng, động viên
-
-Tài liệu tham khảo:
-{DOC_TEXT}
-"""
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return res.choices[0].message.content
-
-# =====================
-# GỬI KHẢO SÁT
-# =====================
+# =========================
+# SUBMIT
+# =========================
 if st.button("📤 GỬI KHẢO SÁT"):
-    st.session_state.submitted = True
     aq_score = sum(answers)
-    level = aq_level(aq_score)
 
+    if aq_score <= 20:
+        level = "Thấp"
+    elif aq_score <= 50:
+        level = "Trung bình"
+    else:
+        level = "Cao"
+
+    with st.spinner("🤖 AI đang phân tích..."):
+        time.sleep(1.5)
+        prompt = f"""
+Bạn là chuyên gia tâm lý học đường.
+
+Điểm AQ: {aq_score} ({level})
+Câu chuyện: {story}
+Nhu cầu: {need}
+
+Hãy:
+- Giải thích ý nghĩa điểm AQ
+- Phân tích vấn đề
+- Đưa ra 3–5 lời khuyên thực tế
+- Văn phong nhẹ nhàng, dễ hiểu
+"""
+
+        res = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        st.session_state.aq_result = res.choices[0].message.content
+        st.session_state.aq_done = True
+
+# =========================
+# KẾT QUẢ (HIỂN THỊ 1 LẦN)
+# =========================
+if st.session_state.aq_done:
+    st.markdown("---")
     st.subheader("📊 KẾT QUẢ ĐÁNH GIÁ")
-    st.write(f"**Điểm AQ:** {aq_score} ({level})")
+    st.success(st.session_state.aq_result)
 
-    with st.spinner("AI đang phân tích..."):
-        result = ai_analyze(aq_score, level, story, need)
+# =========================
+# CHAT – CHỈ DÙNG ĐỂ HỎI TIẾP
+# =========================
+if st.session_state.aq_done:
+    st.markdown("---")
+    st.subheader("💬 Trò chuyện với AI tư vấn")
 
-    st.success(result)
+    for msg in st.session_state.chat_messages:
+        st.chat_message(msg["role"]).markdown(msg["content"])
 
-    st.session_state.chat.append(
-        {"role": "assistant", "content": result}
-    )
-
-# =====================
-# KHUNG CHAT – LUÔN Ở CUỐI
-# =====================
-if st.session_state.submitted:
-    st.divider()
-    st.header("💬 Trò chuyện với AI tư vấn")
-
-    for msg in st.session_state.chat:
-        if msg["role"] == "user":
-            st.markdown(f"👤 **Bạn:** {msg['content']}")
-        else:
-            st.markdown(f"🤖 **AI:** {msg['content']}")
-
-    user_input = st.text_input("Nhập câu hỏi hoặc chia sẻ thêm...")
+    user_input = st.chat_input("Nhập câu hỏi tiếp theo...")
 
     if user_input:
-        st.session_state.chat.append(
+        st.session_state.chat_messages.append(
             {"role": "user", "content": user_input}
         )
 
         with st.spinner("AI đang suy nghĩ..."):
-            follow_prompt = f"""
-Tiếp tục tư vấn dựa trên:
-- Điểm AQ
-- Lịch sử trò chuyện
-- Tài liệu tham khảo
-
-Người dùng nói: {user_input}
-"""
             res = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": follow_prompt}]
+                model="gpt-3.5-turbo",
+                messages=st.session_state.chat_messages
             )
 
-        answer = res.choices[0].message.content
-        st.session_state.chat.append(
-            {"role": "assistant", "content": answer}
+        ai_reply = res.choices[0].message.content
+        st.session_state.chat_messages.append(
+            {"role": "assistant", "content": ai_reply}
         )
 
         st.rerun()
