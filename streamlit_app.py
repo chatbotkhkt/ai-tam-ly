@@ -11,6 +11,18 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# ================== SESSION ==================
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+if "aq_score" not in st.session_state:
+    st.session_state.aq_score = 0
+if "aq_level" not in st.session_state:
+    st.session_state.aq_level = ""
+if "ai_result" not in st.session_state:
+    st.session_state.ai_result = ""
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
 # ================== DỮ LIỆU AQ ==================
 QUESTIONS = [
     "1. Tôi dễ bị bực bội.",
@@ -61,11 +73,12 @@ for i, q in enumerate(QUESTIONS):
     ans = st.radio(q, OPTIONS, key=f"q{i}")
     answers.append(SCORE_MAP[ans])
 
-story = st.text_area("📝 Hãy chia sẻ câu chuyện của bạn")
-need = st.text_area("💬 Bạn cần chúng tôi hỗ trợ gì không?")
+st.subheader("✍️ PHẦN 2. CÂU HỎI TỰ LUẬN")
+story = st.text_area("Hãy chia sẻ câu chuyện của bạn")
+need = st.text_area("Bạn cần chúng tôi hỗ trợ gì không?")
 
-# ================== XỬ LÝ ==================
-if st.button("📤 GỬI KHẢO SÁT"):
+# ================== SUBMIT ==================
+if st.button("📤 GỬI KHẢO SÁT") and not st.session_state.submitted:
     aq_score = sum(answers)
 
     if aq_score <= 25:
@@ -75,10 +88,8 @@ if st.button("📤 GỬI KHẢO SÁT"):
     else:
         level = "Cao"
 
-    st.markdown("---")
-    st.subheader("📊 KẾT QUẢ ĐÁNH GIÁ")
-    st.write(f"**Điểm AQ:** {aq_score}")
-    st.write(f"**Mức AQ:** {level}")
+    st.session_state.aq_score = aq_score
+    st.session_state.aq_level = level
 
     prompt = f"""
 Bạn là chuyên gia tư vấn tâm lý.
@@ -90,15 +101,48 @@ Nhu cầu hỗ trợ: {need}
 
 Hãy:
 - Giải thích ý nghĩa điểm AQ
-- Liên hệ với vấn đề người dùng
-- Đưa ra lời khuyên nhẹ nhàng, không chẩn đoán y khoa
+- Liên hệ với cảm xúc người dùng
+- Đưa ra lời khuyên nhẹ nhàng, thực tế
+- Không chẩn đoán y khoa
 - Kết thúc bằng câu hỏi mở
 """
 
     with st.spinner("🤖 AI đang phân tích..."):
         res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
         )
 
-    st.success(res.choices[0].message.content)
+    st.session_state.ai_result = res.choices[0].message.content
+    st.session_state.submitted = True
+
+# ================== KẾT QUẢ ==================
+if st.session_state.submitted:
+    st.markdown("---")
+    st.subheader("📊 KẾT QUẢ ĐÁNH GIÁ")
+    st.write(f"**Điểm AQ:** {st.session_state.aq_score}")
+    st.write(f"**Mức AQ:** {st.session_state.aq_level}")
+    st.success(st.session_state.ai_result)
+
+# ================== CHAT AI ==================
+if st.session_state.submitted:
+    st.markdown("---")
+    st.subheader("💬 Trò chuyện với AI tư vấn")
+
+    user_msg = st.text_input("Nhập câu hỏi của bạn")
+
+    if user_msg:
+        st.session_state.chat.append(("Bạn", user_msg))
+
+        with st.spinner("AI đang phản hồi..."):
+            res = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": user_msg}],
+                temperature=0.7
+            )
+
+        st.session_state.chat.append(("AI", res.choices[0].message.content))
+
+    for role, msg in st.session_state.chat:
+        st.markdown(f"**{role}:** {msg}")
