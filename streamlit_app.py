@@ -1,4 +1,5 @@
-import openai
+from openai import OpenAI
+import os
 from load_docs import load_all_docs
 
 DOC_TEXT = load_all_docs()
