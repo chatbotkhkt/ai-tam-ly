@@ -1,39 +1,38 @@
 import streamlit as st
 from openai import OpenAI
-import time
 
-# ================= CONFIG =================
+# ================== CẤU HÌNH ==================
 st.set_page_config(page_title="AI Tư vấn tâm lý", layout="centered")
 
-# ================= API =================
-if "OPENAI_API_KEY" not in st.secrets:
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
     st.error("❌ Chưa cấu hình OPENAI_API_KEY")
     st.stop()
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ================= QUESTIONS =================
+# ================== DỮ LIỆU AQ ==================
 QUESTIONS = [
-    "Tôi dễ bị bực bội dễ dàng.",
-    "Tôi thường nóng giận.",
-    "Khi tức giận, tôi dễ nổi xung với người khác.",
-    "Tôi nghĩ rằng nếu ai đó xúc phạm mình, họ đáng bị đánh lại.",
-    "Tôi khó kiểm soát hành vi khi tức giận.",
-    "Tôi hay la hét khi bực mình.",
-    "Tôi từng làm hỏng đồ vì tức giận.",
-    "Tôi thấy khó kiềm chế cảm xúc.",
-    "Tôi dễ cáu gắt vì những việc nhỏ.",
-    "Tôi cảm thấy hối hận sau khi nổi nóng.",
-    "Tôi thường giữ cơn giận trong lòng.",
-    "Tôi hay suy nghĩ tiêu cực khi tức giận.",
-    "Tôi cảm thấy mất kiểm soát khi bị khiêu khích.",
-    "Tôi thường phản ứng ngay khi tức giận.",
-    "Tôi khó bình tĩnh lại sau cơn giận.",
-    "Tôi thấy căng thẳng kéo dài.",
-    "Tôi hay mất ngủ vì suy nghĩ nhiều.",
-    "Tôi cảm thấy áp lực trong cuộc sống.",
-    "Tôi dễ bị stress.",
-    "Tôi cảm thấy khó thích nghi với thay đổi."
+    "1. Tôi dễ bị bực bội.",
+    "2. Tôi thường nóng giận.",
+    "3. Khi tức giận, tôi dễ nói nặng lời.",
+    "4. Tôi khó kiểm soát cảm xúc.",
+    "5. Tôi hay cáu gắt với người thân.",
+    "6. Tôi thấy khó bình tĩnh khi gặp áp lực.",
+    "7. Tôi thường phản ứng mạnh với lời chỉ trích.",
+    "8. Tôi khó kiềm chế khi không vừa ý.",
+    "9. Tôi dễ nổi nóng vì chuyện nhỏ.",
+    "10. Tôi hay hối hận sau khi nổi giận.",
+    "11. Tôi khó tha thứ khi bị xúc phạm.",
+    "12. Tôi hay giữ cảm xúc tiêu cực.",
+    "13. Tôi thường suy nghĩ tiêu cực khi căng thẳng.",
+    "14. Tôi khó thích nghi khi có thay đổi.",
+    "15. Tôi dễ bị stress kéo dài.",
+    "16. Tôi khó lấy lại bình tĩnh nhanh.",
+    "17. Tôi hay lo lắng quá mức.",
+    "18. Tôi cảm thấy áp lực ảnh hưởng đến cảm xúc.",
+    "19. Tôi khó duy trì tinh thần tích cực.",
+    "20. Tôi dễ mất kiểm soát cảm xúc."
 ]
 
 OPTIONS = [
@@ -45,103 +44,61 @@ OPTIONS = [
 ]
 
 SCORE_MAP = {
-    OPTIONS[0]: 1,
-    OPTIONS[1]: 2,
-    OPTIONS[2]: 3,
-    OPTIONS[3]: 4,
-    OPTIONS[4]: 5
+    "Hoàn toàn không đúng": 0,
+    "Không đúng lắm": 1,
+    "Phân vân": 2,
+    "Khá đúng": 3,
+    "Rất đúng": 4
 }
 
-# ================= SESSION =================
-for k in ["submitted", "locked", "result", "chat"]:
-    if k not in st.session_state:
-        st.session_state[k] = False if k != "chat" else []
-
-# ================= UI =================
+# ================== GIAO DIỆN ==================
 st.title("🧠 AI TƯ VẤN TÂM LÝ")
-st.header("PHẦN 1. TRẮC NGHIỆM HÀNH VI (AQ)")
+st.subheader("PHẦN 1. TRẮC NGHIỆM HÀNH VI (AQ)")
 
 answers = []
+
 for i, q in enumerate(QUESTIONS):
-    answers.append(
-        st.radio(f"{i+1}. {q}", OPTIONS, key=f"q{i}")
-    )
+    ans = st.radio(q, OPTIONS, key=f"q{i}")
+    answers.append(SCORE_MAP[ans])
 
-st.divider()
-st.header("✍️ PHẦN 2. CÂU HỎI TỰ LUẬN")
-story = st.text_area("Hãy chia sẻ câu chuyện của bạn")
-need = st.text_area("Bạn cần chúng tôi hỗ trợ gì không?")
+story = st.text_area("📝 Hãy chia sẻ câu chuyện của bạn")
+need = st.text_area("💬 Bạn cần chúng tôi hỗ trợ gì không?")
 
-# ================= SUBMIT =================
-submit = st.button(
-    "📨 GỬI KHẢO SÁT",
-    disabled=st.session_state.locked
-)
+# ================== XỬ LÝ ==================
+if st.button("📤 GỬI KHẢO SÁT"):
+    aq_score = sum(answers)
 
-if submit and not st.session_state.submitted:
-    st.session_state.locked = True  # 🔒 KHÓA NGAY
+    if aq_score <= 25:
+        level = "Thấp"
+    elif aq_score <= 55:
+        level = "Trung bình"
+    else:
+        level = "Cao"
 
-    try:
-        score = sum(SCORE_MAP[a] for a in answers)
-        level = "Thấp" if score <= 40 else "Trung bình" if score <= 70 else "Cao"
+    st.markdown("---")
+    st.subheader("📊 KẾT QUẢ ĐÁNH GIÁ")
+    st.write(f"**Điểm AQ:** {aq_score}")
+    st.write(f"**Mức AQ:** {level}")
 
-        prompt = f"""
+    prompt = f"""
 Bạn là chuyên gia tư vấn tâm lý.
 
-Điểm AQ: {score} ({level})
+Điểm AQ: {aq_score}
+Mức AQ: {level}
 Câu chuyện: {story}
-Nhu cầu: {need}
+Nhu cầu hỗ trợ: {need}
 
 Hãy:
 - Giải thích ý nghĩa điểm AQ
-- Liên hệ câu chuyện
-- Đưa lời khuyên thực tế
-- Không chẩn đoán y khoa
+- Liên hệ với vấn đề người dùng
+- Đưa ra lời khuyên nhẹ nhàng, không chẩn đoán y khoa
+- Kết thúc bằng câu hỏi mở
 """
 
-        with st.spinner("🤖 AI đang phân tích..."):
-            res = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
+    with st.spinner("🤖 AI đang phân tích..."):
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-        st.session_state.result = {
-            "score": score,
-            "level": level,
-            "content": res.choices[0].message.content
-        }
-        st.session_state.submitted = True
-
-    except Exception as e:
-        st.error("⚠️ Hệ thống đang bận, vui lòng thử lại sau")
-        st.session_state.locked = False
-
-# ================= RESULT =================
-if st.session_state.submitted:
-    st.divider()
-    st.header("📊 KẾT QUẢ ĐÁNH GIÁ")
-    st.write(f"**Điểm AQ:** {st.session_state.result['score']} ({st.session_state.result['level']})")
-    st.success(st.session_state.result["content"])
-
-# ================= CHAT =================
-if st.session_state.submitted:
-    st.divider()
-    st.header("💬 Trò chuyện với AI tư vấn")
-
-    msg = st.text_input("Nhập câu hỏi của bạn")
-
-    if msg:
-        st.session_state.chat.append(("Bạn", msg))
-
-        with st.spinner("AI đang suy nghĩ..."):
-            res = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": msg}],
-                temperature=0.7
-            )
-
-        st.session_state.chat.append(("AI", res.choices[0].message.content))
-
-    for r, m in st.session_state.chat:
-        st.markdown(f"**{r}:** {m}")
+    st.success(res.choices[0].message.content)
